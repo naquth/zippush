@@ -1,0 +1,57 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
+        mono: ['"Space Mono"', 'monospace'],
+        display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
+      },
+      colors: {
+        canvas: '#FFFDF5',
+        paper: '#FFF8E7',
+        ink: '#0D0D0D',
+        'ink-2': '#2a2a2a',
+        'ink-3': '#666666',
+        primary: '#FF3C00',
+        'primary-dark': '#CC3000',
+        secondary: '#FFE600',
+        accent: '#00D4FF',
+        'accent-2': '#8B5CF6',
+        green: '#00C853',
+        red: '#FF1744',
+        orange: '#FF6D00',
+        border: '#0D0D0D',
+      },
+      boxShadow: {
+        brutal: '4px 4px 0px 0px #0D0D0D',
+        'brutal-sm': '2px 2px 0px 0px #0D0D0D',
+        'brutal-lg': '6px 6px 0px 0px #0D0D0D',
+        'brutal-xl': '8px 8px 0px 0px #0D0D0D',
+        'brutal-primary': '4px 4px 0px 0px #FF3C00',
+        'brutal-yellow': '4px 4px 0px 0px #FFE600',
+        'brutal-green': '4px 4px 0px 0px #00C853',
+        'brutal-red': '4px 4px 0px 0px #FF1744',
+        'brutal-accent': '4px 4px 0px 0px #00D4FF',
+      },
+      keyframes: {
+        up: { '0%': { opacity: '0', transform: 'translateY(18px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+        'scale-in': { '0%': { opacity: '0', transform: 'scale(0.94)' }, '100%': { opacity: '1', transform: 'scale(1)' } },
+        blink: { '0%,100%': { opacity: '1' }, '50%': { opacity: '0' } },
+        spin: { to: { transform: 'rotate(360deg)' } },
+        'pulse-soft': { '0%,100%': { opacity: '0.6' }, '50%': { opacity: '1' } },
+        marquee: { '0%': { transform: 'translateX(0)' }, '100%': { transform: 'translateX(-50%)' } },
+      },
+      animation: {
+        up: 'up 0.55s cubic-bezier(0.16,1,0.3,1) both',
+        'scale-in': 'scale-in 0.3s cubic-bezier(0.16,1,0.3,1) both',
+        blink: 'blink 1.1s step-end infinite',
+        spin: 'spin 0.75s linear infinite',
+        'pulse-soft': 'pulse-soft 2s ease infinite',
+        marquee: 'marquee 14s linear infinite',
+      },
+    },
+  },
+  plugins: [],
+}
