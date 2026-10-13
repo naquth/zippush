@@ -169,6 +169,7 @@ export function GithubProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!ready || !config.token || !owner || !repoName) { setBranches([]); return }
     let alive = true
+    setBranches([]) // jangan tampilkan branch repo sebelumnya selagi memuat
     client.listBranches()
       .then((b) => { if (alive) setBranches(b) })
       .catch(() => { if (alive) setBranches([]) })

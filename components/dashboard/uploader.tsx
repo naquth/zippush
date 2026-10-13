@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { GitHubClient } from "@/lib/zippush/github"
 import { runPush, type EngineResult } from "@/lib/zippush/engine"
@@ -55,7 +56,7 @@ async function zipItems(file: File): Promise<QueueItem[]> {
 }
 
 export function Uploader() {
-  const { config, owner, isConfigured, recordUploads, bumpContents } = useGithub()
+  const { config, setConfig, owner, isConfigured, recordUploads, bumpContents, repositories, reposLoading, branches } = useGithub()
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [busy, setBusy] = useState<"" | "zip" | "run">("")
   const [progress, setProgress] = useState(0)
@@ -68,6 +69,7 @@ export function Uploader() {
   const folderRef = useRef<HTMLInputElement>(null)
   const zipRef = useRef<HTMLInputElement>(null)
   const logId = useRef(0)
+  const running = busy === "run"
 
   const add = useCallback((items: QueueItem[]) => {
     setOutcome(null); setError(null)
@@ -151,25 +153,65 @@ export function Uploader() {
   }
 
   const startPush = () => (mirror ? setConfirmOpen(true) : execute(false))
-  const running = busy === "run"
   const ch = outcome?.result.changes
   const sm = outcome?.result.summary
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto mt-6">
-      {!isConfigured && (
+      {!config.token ? (
         <Card className="bg-destructive/10 border-destructive">
           <CardContent className="p-4 text-center text-sm">
-            Lengkapi pengaturan GitHub (token, repositori, branch) di tab <b>Pengaturan</b> sebelum mengunggah.
+            Masukkan token GitHub di tab <b>Pengaturan</b> sebelum mengunggah.
           </CardContent>
         </Card>
-      )}
-
-      {isConfigured && (
-        <Card className="bg-muted/30 border-dashed">
-          <CardContent className="p-4 flex flex-col sm:flex-row gap-2 sm:items-center text-sm">
-            <span className="font-medium text-muted-foreground whitespace-nowrap">Unggah ke:</span>
-            <code className="bg-background px-3 py-1.5 border rounded-md break-all">{target}</code>
+      ) : (
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">Repositori tujuan</Label>
+                <Select
+                  value={config.repo ? `${owner}/${config.repo.trim()}` : ""}
+                  onValueChange={(full) => {
+                    const r = repositories.find((x) => x.full_name === full)
+                    if (r) void setConfig({ ...config, username: r.owner.login, repo: r.name, branch: r.default_branch || "main" })
+                  }}
+                  disabled={running || reposLoading || repositories.length === 0}
+                >
+                  <SelectTrigger aria-label="Repositori tujuan">
+                    <SelectValue placeholder={reposLoading ? "Memuat repositori…" : repositories.length ? "Pilih repositori" : "Tidak ada repositori"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {repositories.map((r) => (
+                      <SelectItem key={r.id} value={r.full_name}>{r.full_name}{r.private ? " 🔒" : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">Branch</Label>
+                <Select
+                  value={config.branch}
+                  onValueChange={(b) => void setConfig({ ...config, branch: b })}
+                  disabled={running || !config.repo || branches.length === 0}
+                >
+                  <SelectTrigger aria-label="Branch"><SelectValue placeholder="Branch" /></SelectTrigger>
+                  <SelectContent>
+                    {(branches.includes(config.branch) ? branches : [config.branch, ...branches]).filter(Boolean).map((b) => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {isConfigured ? (
+              <p className="text-xs text-muted-foreground break-all">
+                Unggah ke <code className="bg-muted px-1.5 py-0.5 rounded">{target}</code>
+                {" "}— folder tujuan &amp; pesan commit diatur di tab Pengaturan.
+              </p>
+            ) : (
+              <p className="text-xs text-destructive">Pilih repositori tujuan terlebih dulu.</p>
+            )}
           </CardContent>
         </Card>
       )}

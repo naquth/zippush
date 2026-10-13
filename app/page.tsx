@@ -78,7 +78,7 @@ export default function Home() {
       </main>
       <Toaster />
       <footer className="border-t py-6 text-center text-xs text-muted-foreground bg-muted/20 px-4">
-        <p>© Naquth · Berbasis <a className="underline" href="https://github.com/sannnproject/GITHUB-UPLOADER" target="_blank" rel="noreferrer noopener">GITHUB-UPLOADER</a> oleh SANN404 FORUM GROUP (Apache-2.0)</p>
+        <p>© Naquth</p>
       </footer>
     </div>
   )

@@ -60,6 +60,17 @@ with sync_playwright() as p:
 
     # ── unggah ZIP ──
     page.get_by_role('tab', name='Unggah').click()
+    rs = page.get_by_role('combobox', name='Repositori tujuan')
+    expect(rs).to_contain_text('tester/demo')
+    check(True, 'tab Unggah: pemilih repositori menampilkan repo aktif (tester/demo)')
+    rs.click(); page.get_by_role('option', name='tester/public-one').click()
+    expect(rs).to_contain_text('public-one')
+    check(True, 'tab Unggah: bisa pindah ke repo lain')
+    rs.click(); page.get_by_role('option', name='tester/demo').click()
+    expect(rs).to_contain_text('tester/demo')
+    page.wait_for_timeout(500)
+    expect(page.get_by_role('combobox', name='Branch')).to_contain_text('main')
+    check(True, 'tab Unggah: pemilih branch ikut terisi (main)')
     page.locator('input[accept=".zip,application/zip"]').set_input_files('/tmp/test.zip')
     expect(page.get_by_text('Antrean Unggahan')).to_be_visible(timeout=8000)
     check(page.get_by_text('8 file').count() >= 1, 'ZIP dibaca: 8 entri file (termasuk 2 sampah) masuk antrean')
