@@ -1,18 +1,18 @@
 import { describe, it, expect } from 'vitest'
 import { createHash, randomBytes } from 'node:crypto'
 import { FakeGitHub } from './fakeGithub'
-import { runPush } from '../src/engine/pushEngine'
-import { prepareEntries, normalizePath } from '../src/utils/paths'
-import { gitBlobSha, toBase64, tryDecodeText } from '../src/utils/encoding'
-import { GitHubClient } from '../src/utils/github'
-import type { ExtractedFile } from '../src/types'
+import { runPush, runDelete } from '../lib/zippush/engine'
+import { prepareEntries, normalizePath, normalizeFolder, formatCommitMessage } from '../lib/zippush/paths'
+import { gitBlobSha, toBase64, tryDecodeText } from '../lib/zippush/encoding'
+import { GitHubClient, encodePath } from '../lib/zippush/github'
+import type { ExtractedFile } from '../lib/zippush/types'
 
 const enc = (s: string) => new TextEncoder().encode(s)
 const f = (path: string, c: string | Uint8Array, executable = false): ExtractedFile =>
   ({ path, data: typeof c === 'string' ? enc(c) : c, executable })
 const noop = { log: () => {}, progress: () => {}, fileDone: () => {} }
-const run = (gh: FakeGitHub, files: ExtractedFile[], extra: any = {}) => {
-  const { entries, skipped } = prepareEntries(files)
+const run = (gh: FakeGitHub, files: ExtractedFile[], extra: any = {}, prep: any = {}) => {
+  const { entries, skipped } = prepareEntries(files, prep)
   const done: number[] = []
   return runPush(gh, { branch: 'main', commitMessage: 'm', entries, clearRepo: false, skipped, ...extra },
     { ...noop, fileDone: (i) => done.push(i) }).then((r) => ({ ...r, done }))
@@ -153,7 +153,7 @@ describe('GitHubClient', () => {
   const mk = (responses: Array<() => Promise<Response> | Response>, sleeps: number[] = []) => {
     let i = 0
     const fetchImpl = (async () => responses[Math.min(i++, responses.length - 1)]()) as unknown as typeof fetch
-    const gh = new GitHubClient({ token: ' tok ', owner: 'o', repo: 'r', branch: 'main' },
+    const gh = new GitHubClient({ token: ' tok ', owner: 'o', repo: 'r' },
       { fetchImpl, sleep: async (ms) => { sleeps.push(ms) }, maxRetries: 3 })
     return { gh, calls: () => i }
   }
@@ -178,7 +178,7 @@ describe('GitHubClient', () => {
     expect(await gh.getBranchHead('main')).toBe('ok')
     expect(calls()).toBe(3)
     const m2 = mk([json(401, { message: 'Bad credentials' })])
-    await expect(m2.gh.getBranchHead('main')).rejects.toThrow(/Token invalid/)
+    await expect(m2.gh.getBranchHead('main')).rejects.toThrow(/Token tidak valid/)
     expect(m2.calls()).toBe(1)
   })
   it('timeout (request menggantung) di-abort lalu di-retry', async () => {
@@ -187,13 +187,89 @@ describe('GitHubClient', () => {
       if (i++ === 0) return new Promise((_r, rej) => init.signal!.addEventListener('abort', () => rej(new DOMException('a', 'AbortError'))))
       return Promise.resolve(new Response(JSON.stringify({ object: { sha: 'late' } }), { status: 200 }))
     }) as unknown as typeof fetch
-    const gh = new GitHubClient({ token: 't', owner: 'o', repo: 'r', branch: 'm' }, { fetchImpl, sleep: async () => {}, timeoutMs: 20 })
+    const gh = new GitHubClient({ token: 't', owner: 'o', repo: 'r' }, { fetchImpl, sleep: async () => {}, timeoutMs: 20 })
     expect(await gh.getBranchHead('main')).toBe('late')
     expect(i).toBe(2)
   })
   it('error biasa gagal setelah maxRetries dengan pesan jelas', async () => {
     const { gh, calls } = mk([() => { throw new TypeError('fetch failed') }])
-    await expect(gh.getBranchHead('main')).rejects.toThrow(/after 4 attempts/)
+    await expect(gh.getBranchHead('main')).rejects.toThrow(/setelah 4 percobaan/)
     expect(calls()).toBe(4)
+  })
+})
+
+describe('fitur gabungan (Naquth)', () => {
+  it('encodePath: spasi, #, ?, % aman tetapi "/" dipertahankan', () => {
+    expect(encodePath('my file#1.png')).toBe('my%20file%231.png')
+    expect(encodePath('a/b c/report?v2.txt')).toBe('a/b%20c/report%3Fv2.txt')
+    expect(encodePath('feature/x')).toBe('feature/x')
+  })
+  it('normalizeFolder & prefix target folder', () => {
+    expect(normalizeFolder('/assets//img/')).toBe('assets/img')
+    expect(normalizeFolder('')).toBe('')
+    expect(() => normalizeFolder('a/../b')).toThrow()
+    expect(() => normalizeFolder('.git/x')).toThrow()
+    const { entries } = prepareEntries([f('p/a.txt', '1'), f('p/s/b.txt', '2')], { prefix: 'docs/v1' })
+    expect(entries.map((e) => e.path)).toEqual(['docs/v1/a.txt', 'docs/v1/s/b.txt'])
+  })
+  it('autoStrip:false mempertahankan folder pembungkus', () => {
+    const { entries, stripRoot } = prepareEntries([f('proj/a.txt', '1'), f('proj/b.txt', '2')], { autoStrip: false })
+    expect(stripRoot).toBe('')
+    expect(entries.map((e) => e.path)).toEqual(['proj/a.txt', 'proj/b.txt'])
+  })
+  it('formatCommitMessage: {filename} {count} {date}', () => {
+    expect(formatCommitMessage('Upload {filename}', ['a/b.txt'])).toBe('Upload b.txt')
+    expect(formatCommitMessage('Upload {filename}', ['a', 'b', 'c'])).toBe('Upload 3 files')
+    expect(formatCommitMessage('', ['a', 'b'])).toBe('Upload 2 files')
+    expect(formatCommitMessage('{count} @ {date}', ['a'])).toMatch(/^1 @ \d{4}-\d{2}-\d{2}$/)
+  })
+  it('clearRepo dengan scopePrefix hanya menghapus di dalam folder target', async () => {
+    const gh = new FakeGitHub(); await gh.seed('main', { 'keep/root.txt': 'k', 'docs/old.txt': 'o', 'docs/sub/old2.txt': 'o2', 'top.txt': 't' })
+    const r = await run(gh, [f('new.txt', 'n')], { clearRepo: true, scopePrefix: 'docs' }, { prefix: 'docs' })
+    expect([...gh.head('main').keys()].sort()).toEqual(['docs/new.txt', 'keep/root.txt', 'top.txt'])
+    expect(r.summary.deleted).toBe(2)
+  })
+  it('dryRun: melaporkan perubahan tanpa menulis apa pun', async () => {
+    const gh = new FakeGitHub(); const c0 = await gh.seed('main', { 'a.txt': 'old', 'gone.txt': 'g' })
+    const r = await run(gh, [f('a.txt', 'new'), f('b.bin', new Uint8Array(randomBytes(100)))], { dryRun: true, clearRepo: true })
+    expect(r.changes).toEqual({ added: ['b.bin'], modified: ['a.txt'], deleted: ['gone.txt'] })
+    expect(r.commitSha).toBeUndefined()
+    expect(gh.refs.get('main')).toBe(c0)
+    expect((gh.calls['blob'] ?? 0) + (gh.calls['createTree'] ?? 0) + (gh.calls['createCommit'] ?? 0)).toBe(0)
+  })
+  it('runDelete: file + folder dihapus dalam SATU commit', async () => {
+    const gh = new FakeGitHub(); await gh.seed('main', { 'a.txt': '1', 'dir/x.txt': '2', 'dir/deep/y.txt': '3', 'keep.txt': '4' })
+    const r = await runDelete(gh, { branch: 'main', paths: ['a.txt', 'dir'], message: 'hapus' }, { log: () => {}, progress: () => {} })
+    expect(r.deleted).toBe(3)
+    expect(gh.calls['createCommit']).toBe(1)
+    expect([...gh.head('main').keys()]).toEqual(['keep.txt'])
+    await expect(runDelete(gh, { branch: 'main', paths: ['nope'], message: 'x' }, { log: () => {}, progress: () => {} })).rejects.toThrow(/Tidak ada file/)
+  })
+  it('listRepos: pagination (>100 repo) & repo privat ikut', async () => {
+    const mkRepo = (i: number) => ({ id: i, name: 'r' + i, private: i % 2 === 0 })
+    const pages: Record<string, unknown[]> = { '1': Array.from({ length: 100 }, (_, i) => mkRepo(i)), '2': Array.from({ length: 37 }, (_, i) => mkRepo(100 + i)) }
+    const urls: string[] = []
+    const fetchImpl = (async (u: string) => { urls.push(u); const p = new URL(u).searchParams.get('page')!; return new Response(JSON.stringify(pages[p] ?? []), { status: 200 }) }) as unknown as typeof fetch
+    const gh = new GitHubClient({ token: 't' }, { fetchImpl })
+    const repos = await gh.listRepos()
+    expect(repos.length).toBe(137)
+    expect(urls.every((u) => u.includes('/user/repos') && u.includes('affiliation='))).toBe(true) // BUKAN /users/{u}/repos (publik saja)
+    expect(repos.some((r) => r.private)).toBe(true)
+  })
+  it('error 422 menyertakan detail dari GitHub (mis. nama repo sudah ada)', async () => {
+    const fetchImpl = (async () => new Response(JSON.stringify({ message: 'Repository creation failed.', errors: [{ message: 'name already exists on this account' }] }), { status: 422 })) as unknown as typeof fetch
+    const gh = new GitHubClient({ token: 't' }, { fetchImpl })
+    await expect(gh.createRepo('x', '', false)).rejects.toThrow(/name already exists/)
+  })
+  it('getUser membaca scope token dari header', async () => {
+    const fetchImpl = (async () => new Response(JSON.stringify({ login: 'me' }), { status: 200, headers: { 'x-oauth-scopes': 'repo, workflow' } })) as unknown as typeof fetch
+    const r = await new GitHubClient({ token: 't' }, { fetchImpl }).getUser()
+    expect(r.user.login).toBe('me'); expect(r.scopes).toEqual(['repo', 'workflow'])
+  })
+  it('listContents meng-encode path & ref (nama file berisi # / ?)', async () => {
+    let url = ''
+    const fetchImpl = (async (u: string) => { url = u; return new Response('[]', { status: 200 }) }) as unknown as typeof fetch
+    await new GitHubClient({ token: 't', owner: 'o', repo: 'r' }, { fetchImpl }).listContents('dir/my file#1', 'feature/x y')
+    expect(url).toBe('https://api.github.com/repos/o/r/contents/dir/my%20file%231?ref=feature%2Fx%20y')
   })
 })

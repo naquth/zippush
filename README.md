@@ -1,68 +1,50 @@
-# ZipPush
+<p align="center"><img src="public/brand/logo-dark.png" alt="Naquth" width="320"></p>
 
-> Push code to GitHub from your phone — no terminal required.
+# Naquth
 
-Extract a ZIP file and commit all changed files to your GitHub repository using only your browser and a Personal Access Token.
+Push **ZIP, folder, atau file** ke GitHub dalam **satu commit** — langsung dari browser, tanpa terminal, tanpa server.
 
-## Stack
+## Kenapa cepat & tidak timeout
 
-- **React 18** + **TypeScript**
-- **Tailwind CSS v3**
-- **Vite** (build tool)
-- **JSZip** (client-side ZIP extraction)
-- **GitHub REST API** (Git Data API for blobs/trees/commits)
+Tool serupa mengirim **2 request per file, berurutan, 1 commit per file**. Naquth memakai Git Data API:
 
-## Features
+1. Membaca tree repo (3 request) dan menghitung SHA Git tiap file lokal → **hanya file yang berubah** yang dikirim.
+2. File **teks** ditanam langsung di request tree (0 request tambahan). File **biner** diunggah sebagai blob, **paralel** (6 sekaligus).
+3. Tree dibuat berantai → **1 commit** → **1 update branch**. Gagal di tengah jalan = repo tidak berubah; aman diulang.
+4. Tahan banting: timeout 30 dtk/request, retry + backoff, patuh `Retry-After`/rate-limit GitHub, layar dijaga tetap menyala selama proses.
 
-- 📦 Client-side ZIP extraction (no server, no uploads)
-- 🔐 GitHub PAT auth with optional localStorage persistence
-- 🌿 Auto-detects and strips root folder from ZIP
-- 📊 Real-time push log with timestamps
-- ⚡ **Turbo push engine** — only *changed* files are sent; text files go inline in the tree (0 extra requests), binaries upload in parallel; ends with exactly **one commit + one ref update** (atomic)
-- 🔁 Auto-retry with backoff, per-request timeout, GitHub rate-limit (429/403) aware, screen wake-lock while pushing
-- 📈 Per-file progress tracking
-- 🔒 Binary-safe (base64 for images/fonts, utf-8 for text)
-- ✅ Direct link to created commit
+ZIP 600 file teks ≈ **<10 request** (sebelumnya 600+).
 
-## Deploy to Vercel
+## Fitur
+- Seret & lepas file/folder, pilih folder, atau ZIP (diekstrak di browser; sampah `__MACOSX`, `.DS_Store`, `.git`, path `../` dibuang; folder pembungkus otomatis dibuang)
+- **Pratinjau perubahan** sebelum push (baru / diubah / dihapus / sama)
+- Target folder, template pesan commit (`{filename} {count} {date}`), mode **mirror** (hapus file lama, dibatasi ke target folder)
+- **Penjelajah**: telusuri, buka, hapus file/folder (1 commit)
+- **Repositori**: daftar publik **dan privat**, jadikan target, buat, hapus (wajib ketik nama)
+- Mode terang/gelap, PWA (service worker berversi), responsif mobile
 
+## Privasi & keamanan
+- Tidak ada backend: browser → `api.github.com` langsung (dikunci oleh CSP `connect-src`).
+- Token **default hanya di sessionStorage** (hilang saat tab ditutup). "Ingat token" opsional (disimpan tanpa enkripsi — jangan di perangkat bersama). Ekspor konfigurasi **tidak** menyertakan token.
+- Scope token: `repo` (+ `workflow` bila menyentuh `.github/workflows`, + `delete_repo` untuk hapus repo). Fine-grained token per-repo lebih aman.
+
+## Menjalankan
 ```bash
-# 1. Clone / download this project
-# 2. Install deps
 npm install
-
-# 3. Dev server
-npm run dev
-
-# 4. Deploy
-npx vercel --prod
+npm run dev        # http://localhost:3000
+npm run build && npm start
+npm test           # 30 tes engine (GitHub palsu in-memory)
+npm run typecheck && npm run lint
 ```
+Deploy: Vercel/Netlify/hosting Node apa pun. Header keamanan & CSP aktif di produksi (`next.config.mjs`).
 
-Or connect your GitHub repo to [vercel.com](https://vercel.com) for automatic deploys.
-
-## GitHub Token
-
-You need a **Personal Access Token** with `repo` scope:
-
-1. Go to [github.com/settings/tokens/new](https://github.com/settings/tokens/new?scopes=repo&description=ZipPush)
-2. Select `repo` scope
-3. Generate and copy the token
-
-Your token is **never sent to any server** — it lives only in your browser and goes directly to `api.github.com`.
-
-## How it works
-
-1. You drop a `.zip` — JSZip extracts it in the browser; junk (`__MACOSX`, `.DS_Store`, `.git`, `../` paths) is filtered and the root folder is auto-stripped.
-2. ZipPush reads the branch's current tree (3 requests) and computes the **Git blob SHA-1** of each local file — files identical to the repo are skipped.
-3. Changed **text** files are embedded directly in the tree request (no per-file request). **Binary** files are uploaded as blobs, in parallel (6 at a time).
-4. Trees are created in chained chunks, then **one commit** and **one branch update**. If anything fails before the last step, the repo is untouched; re-pushing is safe.
-
-A 500-file ZIP that used to need 500+ sequential requests now takes roughly 5–10 requests (plus one per changed binary).
-
-## Tests
-
+### Uji end-to-end (opsional)
+`e2e/` berisi skrip Playwright (Python) + GitHub palsu yang menjalankan seluruh alur UI di build produksi:
 ```bash
-npm test
+pip install playwright && playwright install chromium
+npm run build && npm start -- -p 3100 &
+python3 e2e/e2e.py
 ```
 
-The engine is covered by an in-memory fake GitHub that mimics Git Data API semantics (real blob SHAs, duplicate-path and file/folder conflict rejection).
+## Lisensi
+Apache-2.0. Karya turunan dari GITHUB-UPLOADER oleh SANN404 FORUM GROUP — lihat `LICENSE` dan `NOTICE`.

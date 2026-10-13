@@ -1,6 +1,6 @@
-import type { GitHubApi, RemoteBlob } from '../src/utils/github'
-import type { TreeItem } from '../src/types'
-import { gitBlobSha } from '../src/utils/encoding'
+import type { GitHubApi, RemoteBlob } from '../lib/zippush/github'
+import type { TreeItem } from '../lib/zippush/types'
+import { gitBlobSha } from '../lib/zippush/encoding'
 
 type Tree = Map<string, RemoteBlob>
 

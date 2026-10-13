@@ -1,0 +1,17 @@
+Naquth
+Copyright 2026 Naquth
+
+Project ini adalah karya turunan dari GITHUB-UPLOADER
+(https://github.com/sannnproject/GITHUB-UPLOADER)
+Copyright SANN404 FORUM GROUP, dilisensikan di bawah Apache License 2.0.
+
+Perubahan utama terhadap karya asli (sesuai Apache-2.0 §4b):
+  - Engine unggah ditulis ulang: dari Contents API (2 request & 1 commit per file)
+    menjadi Git Data API (satu commit atomik, hanya file berubah, upload paralel,
+    retry/timeout/rate-limit).
+  - Perbaikan bug: encoding path, cek SHA per branch, fallback owner, antrean tidak
+    lagi dikosongkan saat gagal, daftar repo privat + pagination, Explorer basi.
+  - Token tidak lagi disimpan permanen secara default; ekspor konfigurasi tanpa token.
+  - Service worker berversi, CSP & security headers, penghapusan iframe pihak ketiga
+    dan popup promosi, pembersihan dependency, penambahan tes otomatis.
+  - Branding Naquth.
