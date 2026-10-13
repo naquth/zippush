@@ -43,6 +43,7 @@ export default function App() {
   }, [zip])
 
   const handlePush = async () => {
+    if (isPushing)           return
     if (!token)              return alert('Please enter your GitHub token.')
     if (!owner || !repo)     return alert('Please enter owner and repo name.')
     if (!zip.files.length)   return alert('Please upload a ZIP file first.')
@@ -360,6 +361,7 @@ export default function App() {
           errorMessage={push.errorMessage}
           fileCount={zip.files.length}
           branch={branch || 'main'}
+          summary={push.summary}
         />
 
         {/* ══ FOOTER ══ */}

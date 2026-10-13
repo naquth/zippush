@@ -1,5 +1,5 @@
 import { ExternalLinkIcon, AlertIcon, CheckIcon } from './Icons'
-import type { PushState } from '@/types'
+import type { PushState, PushSummary } from '@/types'
 
 interface Props {
   status: PushState['status']
@@ -7,9 +7,10 @@ interface Props {
   errorMessage?: string
   fileCount?: number
   branch?: string
+  summary?: PushSummary
 }
 
-export function ResultBanner({ status, commitUrl, errorMessage, fileCount, branch }: Props) {
+export function ResultBanner({ status, commitUrl, errorMessage, fileCount, branch, summary }: Props) {
   if (status !== 'done' && status !== 'error') return null
   const ok = status === 'done'
 
@@ -24,10 +25,17 @@ export function ResultBanner({ status, commitUrl, errorMessage, fileCount, branc
 
       <div className="flex-1 min-w-0">
         <p className="font-display font-800 text-[14px] text-canvas">
-          {ok
-            ? `✓ Pushed ${fileCount} file${fileCount !== 1 ? 's' : ''} → ${branch}`
-            : '✗ Push failed'}
+          {!ok
+            ? '✗ Push failed'
+            : !commitUrl
+              ? `✓ Already up to date → ${branch}`
+              : `✓ Pushed ${summary ? summary.added + summary.modified : fileCount} changed file${(summary ? summary.added + summary.modified : fileCount) !== 1 ? 's' : ''} → ${branch}`}
         </p>
+        {ok && summary && (
+          <p className="text-[11px] text-canvas/80 font-mono mt-0.5">
+            +{summary.added} new · ~{summary.modified} modified · −{summary.deleted} deleted · ={summary.unchanged} unchanged · {summary.requests} requests
+          </p>
+        )}
         {!ok && errorMessage && (
           <p className="text-[11px] text-canvas/80 font-mono mt-0.5 truncate">{errorMessage}</p>
         )}
