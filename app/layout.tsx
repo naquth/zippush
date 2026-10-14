@@ -1,4 +1,7 @@
 import type { Metadata, Viewport } from "next"
+import "@fontsource-variable/plus-jakarta-sans"
+import "@fontsource-variable/sora"
+import "@fontsource-variable/jetbrains-mono"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { GithubProvider } from "@/lib/github-context"
@@ -31,7 +34,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="id" suppressHydrationWarning>
-      <body className="font-sans antialiased">
+      <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <GithubProvider>
             {children}

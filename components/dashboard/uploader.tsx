@@ -3,20 +3,27 @@
 import { useState, useRef, useCallback, useMemo } from "react"
 import { useDropzone } from "react-dropzone"
 import { toast } from "sonner"
-import { UploadCloud, FolderUp, FileArchive, X, Eye, Rocket, ExternalLink, CheckCircle2, AlertTriangle } from "lucide-react"
+import { FolderUp, FileArchive, Eye, Rocket, ExternalLink, CheckCircle2, AlertTriangle, Check, GitBranch, ChevronDown, Layers, Eraser, Plus, Minus, Equal, Pencil } from "lucide-react"
 import { useGithub } from "@/lib/github-context"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { useShell } from "@/components/shell/shell-context"
+import { ViewHeader, Eyebrow } from "@/components/shell/view-header"
+import { Emblem } from "@/components/brand/logo"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { FileTree } from "@/components/dashboard/file-tree"
+import { ProgressRing } from "@/components/dashboard/progress-ring"
+import { RunConsole, type LogLine } from "@/components/dashboard/run-console"
+import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap"
 import { GitHubClient } from "@/lib/zippush/github"
 import { runPush, type EngineResult } from "@/lib/zippush/engine"
 import { prepareEntries, normalizeFolder, formatCommitMessage } from "@/lib/zippush/paths"
 import { withKeepAlive } from "@/lib/zippush/runtime"
 import type { ExtractedFile, LogType } from "@/lib/zippush/types"
+import { cn } from "@/lib/utils"
 
 interface QueueItem {
   id: string
@@ -25,16 +32,12 @@ interface QueueItem {
   executable?: boolean
   load: () => Promise<Uint8Array>
 }
-interface LogLine { id: number; type: LogType; msg: string; t: string }
 interface Outcome { result: EngineResult; dryRun: boolean; commitUrl?: string }
 
 let seq = 0
 const nextId = () => `q${++seq}`
 const fmt = (b: number) => (b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`)
 const time = () => new Date().toTimeString().slice(0, 8)
-const logColor: Record<LogType, string> = {
-  ok: "text-green-500", err: "text-red-500", warn: "text-amber-500", info: "text-sky-500", plain: "text-muted-foreground",
-}
 
 function fileItem(file: File): QueueItem {
   // react-dropzone mengisi `path` (termasuk folder yang di-drop); input folder mengisi webkitRelativePath
@@ -56,6 +59,7 @@ async function zipItems(file: File): Promise<QueueItem[]> {
 }
 
 export function Uploader() {
+  const { setView } = useShell()
   const { config, setConfig, owner, isConfigured, recordUploads, bumpContents, repositories, reposLoading, branches } = useGithub()
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [busy, setBusy] = useState<"" | "zip" | "run">("")
@@ -71,6 +75,7 @@ export function Uploader() {
   const zipRef = useRef<HTMLInputElement>(null)
   const logId = useRef(0)
   const running = busy === "run"
+  const [showLog, setShowLog] = useState(true)
 
   const add = useCallback((items: QueueItem[]) => {
     setOutcome(null); setError(null)
@@ -127,7 +132,7 @@ export function Uploader() {
     let prefix: string
     try { prefix = normalizeFolder(config.targetFolder) } catch (e) { toast.error((e as Error).message); return null }
 
-    setBusy("run"); setProgress(0); setLogs([]); setOutcome(null); setError(null)
+    setBusy("run"); setProgress(0); setLogs([]); setOutcome(null); setError(null); setShowLog(true)
     const log = (type: LogType, msg: string) =>
       setLogs((l) => [...l.slice(-300), { id: ++logId.current, type, msg, t: time() }])
 
@@ -161,6 +166,7 @@ export function Uploader() {
         setQueue([]) // hanya dikosongkan saat sukses — kalau gagal, antrean tetap utuh untuk dicoba lagi
         toast.success(result.commitSha ? "Berhasil di-push dalam 1 commit" : "Repo sudah sama dengan isi antrean")
       }
+      setShowLog(false) // sukses: ringkas log, tampilkan hasilnya
       return result
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error"
@@ -185,18 +191,46 @@ export function Uploader() {
   }
   const ch = outcome?.result.changes
   const sm = outcome?.result.summary
+  const stage = queue.length === 0 ? (outcome && !outcome.dryRun ? 3 : 0) : outcome?.dryRun ? 2 : 1
+  const changeCount = ch ? ch.added.length + ch.modified.length + ch.deleted.length : 0
+  const phase = logs.length ? logs[logs.length - 1].msg : "Menyiapkan…"
+
+  const Step = ({ i, label }: { i: number; label: string }) => {
+    const done = stage > i
+    const on = stage === i
+    return (
+      <li className="flex items-center gap-2">
+        <span className={cn("grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold transition-colors",
+          done ? "bg-ember text-primary-foreground" : on ? "border-2 border-primary text-foreground" : "border border-input text-muted-foreground")}>
+          {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
+        </span>
+        <span className={cn("text-xs font-bold", on || done ? "text-foreground" : "text-muted-foreground")}>{label}</span>
+      </li>
+    )
+  }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto mt-6">
+    <div className="space-y-5">
+      <ViewHeader eyebrow="Kirim" title="Unggah ke GitHub" subtitle="Seret file, folder, atau ZIP. Satu klik, satu commit — hanya yang berubah yang dikirim." />
+
+      <ol className="flex items-center gap-3 overflow-x-auto" aria-label="Langkah">
+        <Step i={0} label="Sumber" /><span className="h-px min-w-4 flex-1 bg-border" />
+        <Step i={1} label="Tinjau" /><span className="h-px min-w-4 flex-1 bg-border" />
+        <Step i={2} label="Luncurkan" />
+      </ol>
+
+      {/* ───── tujuan ───── */}
       {!config.token ? (
-        <Card className="bg-destructive/10 border-destructive">
-          <CardContent className="p-4 text-center text-sm">
-            Masukkan token GitHub di tab <b>Pengaturan</b> sebelum mengunggah.
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex flex-col items-start gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between sm:pt-6">
+            <p className="text-sm">Masukkan token GitHub di tab <b>Pengaturan</b> sebelum mengunggah.</p>
+            <Button size="sm" onClick={() => setView("settings")}>Buka Pengaturan</Button>
           </CardContent>
         </Card>
       ) : (
         <Card>
-          <CardContent className="p-4 space-y-3">
+          <CardContent className="space-y-3 pt-5 sm:pt-6">
+            <Eyebrow>Tujuan</Eyebrow>
             <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
               <div className="grid gap-1.5">
                 <Label className="text-xs text-muted-foreground">Repositori tujuan</Label>
@@ -235,71 +269,70 @@ export function Uploader() {
               </div>
             </div>
             {isConfigured ? (
-              <p className="text-xs text-muted-foreground break-all">
-                Unggah ke <code className="bg-muted px-1.5 py-0.5 rounded">{target}</code>
-                {" "}— folder tujuan &amp; pesan commit diatur di tab Pengaturan.
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                <GitBranch className="h-3.5 w-3.5" /> Unggah ke <code className="break-all rounded-md bg-secondary px-1.5 py-0.5 font-mono text-foreground">{target}</code>
+                <button type="button" onClick={() => setView("settings")} className="inline-flex items-center gap-1 text-foreground underline decoration-primary underline-offset-4"><Pencil className="h-3 w-3" /> folder &amp; pesan commit</button>
               </p>
             ) : (
-              <p className="text-xs text-destructive">Pilih repositori tujuan terlebih dulu.</p>
+              <p className="text-xs font-semibold text-destructive">Pilih repositori tujuan terlebih dulu.</p>
             )}
           </CardContent>
         </Card>
       )}
 
+      {/* ───── landasan ───── */}
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-8 sm:p-12 text-center cursor-pointer transition-colors ${isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50"}`}
+        className={cn(
+          "grain relative cursor-pointer overflow-hidden rounded-[2rem] border-2 border-dashed px-6 py-10 text-center transition-all duration-200 sm:py-14",
+          isDragActive ? "scale-[1.01] border-primary bg-primary/10 shadow-glow" : "border-input bg-card/60 hover:border-ember hover:bg-card"
+        )}
       >
         <input {...getInputProps()} />
-        <UploadCloud className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-        <p className="text-lg font-medium">Seret &amp; lepas file atau folder, atau ketuk untuk memilih</p>
+        <div className="relative mx-auto mb-5 grid h-24 w-24 place-items-center">
+          <span className={cn("absolute inset-0 rounded-full bg-ember opacity-20 blur-2xl", isDragActive && "animate-ember-pulse opacity-60")} />
+          <span className="relative grid h-20 w-20 place-items-center rounded-[1.6rem] border bg-card shadow-soft"><Emblem size={44} /></span>
+        </div>
+        <p className="font-display text-lg font-bold sm:text-xl">{isDragActive ? "Lepaskan untuk menambahkan" : "Lepas file, folder, atau ZIP di sini"}</p>
+        <p className="mt-1 text-sm text-muted-foreground">atau ketuk area ini untuk memilih berkas</p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 justify-center">
-        <input
-          type="file" ref={folderRef} className="hidden" multiple onChange={onFolder}
-          {...({ webkitdirectory: "true", directory: "true" } as Record<string, string>)}
-        />
-        <Button variant="outline" className="w-full sm:w-auto" onClick={() => folderRef.current?.click()}>
-          <FolderUp className="mr-2 h-4 w-4" /> Pilih Folder
-        </Button>
+      <div className="flex flex-wrap items-center justify-center gap-2.5">
+        <input type="file" ref={folderRef} className="hidden" multiple onChange={onFolder} {...({ webkitdirectory: "true", directory: "true" } as Record<string, string>)} />
+        <Button variant="secondary" size="sm" onClick={() => folderRef.current?.click()}><FolderUp className="h-4 w-4" /> Pilih Folder</Button>
         <input type="file" ref={zipRef} className="hidden" accept=".zip,application/zip" onChange={onZip} />
-        <Button variant="outline" className="w-full sm:w-auto" disabled={busy === "zip"} onClick={() => zipRef.current?.click()}>
-          <FileArchive className="mr-2 h-4 w-4" /> {busy === "zip" ? "Membaca ZIP…" : "Ekstrak & Unggah ZIP"}
+        <Button variant="secondary" size="sm" disabled={busy === "zip"} onClick={() => zipRef.current?.click()}>
+          <FileArchive className="h-4 w-4" /> {busy === "zip" ? "Membaca ZIP…" : "Ekstrak & Unggah ZIP"}
         </Button>
-      </div>
-      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-        <Switch id="autozip" checked={autoExtract} onCheckedChange={setAutoExtract} />
-        <Label htmlFor="autozip" className="font-normal">Ekstrak otomatis file .zip yang di-drop</Label>
+        <label htmlFor="autozip" className="flex cursor-pointer items-center gap-2 rounded-xl border bg-secondary/50 py-1 pl-3 pr-1.5 text-xs font-semibold text-muted-foreground">
+          Ekstrak otomatis file .zip yang di-drop
+          <Switch id="autozip" checked={autoExtract} onCheckedChange={setAutoExtract} className="h-6 w-10 [&>span]:h-5 [&>span]:w-5 [&>span]:data-[state=checked]:translate-x-4" />
+        </label>
       </div>
 
+      {/* ───── antrean ───── */}
       {queue.length > 0 && (
-        <Card>
-          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle>Antrean Unggahan</CardTitle>
-              <CardDescription>{queue.length} file{totalSize > 0 ? ` · ${fmt(totalSize)}` : ""}</CardDescription>
+        <Card className="animate-rise">
+          <CardContent className="space-y-4 pt-5 sm:pt-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-display text-lg font-bold">Antrean Unggahan</h3>
+                <p className="text-sm text-muted-foreground">{queue.length} file{totalSize > 0 ? ` · ${fmt(totalSize)}` : ""}</p>
+              </div>
+              <Layers className="h-5 w-5 text-muted-foreground" />
             </div>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => { setQueue([]); setOutcome(null) }} disabled={running}>Bersihkan</Button>
-              <Button variant="secondary" className="flex-1 sm:flex-none" onClick={() => execute(true)} disabled={running || !isConfigured}>
-                <Eye className="mr-2 h-4 w-4" /> Pratinjau
-              </Button>
-              <Button className="flex-1 sm:flex-none" onClick={startPush} disabled={running || !isConfigured}>
-                <Rocket className="mr-2 h-4 w-4" /> {running ? "Mengunggah…" : "Unggah"}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
+
+            <FileTree files={queue} disabled={running} onRemove={(ids) => setQueue((p) => p.filter((x) => !ids.includes(x.id)))} />
+
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex items-start justify-between gap-3 border rounded-lg p-3">
+              <div className="flex items-start justify-between gap-3 rounded-2xl border bg-secondary/40 p-3.5">
                 <div className="space-y-0.5">
                   <Label htmlFor="strip" className="text-sm">Buang folder pembungkus</Label>
-                  <p className="text-xs text-muted-foreground">Jika semua file ada di satu folder (mis. <code>proj/</code>), isinya dinaikkan ke root.</p>
+                  <p className="text-xs text-muted-foreground">Jika semua file ada di satu folder (mis. <code className="font-mono">proj/</code>), isinya dinaikkan ke root.</p>
                 </div>
                 <Switch id="strip" checked={autoStrip} onCheckedChange={setAutoStrip} disabled={running} />
               </div>
-              <div className={`flex items-start justify-between gap-3 border rounded-lg p-3 ${mirror ? "border-destructive bg-destructive/5" : ""}`}>
+              <div className={cn("flex items-start justify-between gap-3 rounded-2xl border p-3.5 transition-colors", mirror ? "border-destructive/60 bg-destructive/10" : "bg-secondary/40")}>
                 <div className="space-y-0.5">
                   <Label htmlFor="mirror" className="text-sm">Hapus file lama (mirror)</Label>
                   <p className="text-xs text-muted-foreground">Hapus file di repo yang tidak ada di antrean{config.targetFolder.trim() ? " — hanya di dalam target folder" : " — seluruh repo"}.</p>
@@ -307,81 +340,101 @@ export function Uploader() {
                 <Switch id="mirror" checked={mirror} onCheckedChange={setMirror} disabled={running} />
               </div>
             </div>
-
-            <div className="max-h-56 overflow-y-auto border rounded-md">
-              {queue.slice(0, 100).map((q) => (
-                <div key={q.id} className="flex items-center justify-between px-3 py-2 border-b last:border-0 hover:bg-muted/50">
-                  <p className="text-sm truncate flex-1 mr-3 font-mono">{q.path.replace(/^\.?\/+/, "")}</p>
-                  <span className="text-xs text-muted-foreground mr-2">{q.size > 0 ? fmt(q.size) : ""}</span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={running} aria-label="Hapus dari antrean"
-                    onClick={() => setQueue((p) => p.filter((x) => x.id !== q.id))}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              {queue.length > 100 && <p className="text-xs text-muted-foreground p-3 text-center">…dan {queue.length - 100} file lainnya</p>}
-            </div>
           </CardContent>
         </Card>
       )}
 
+      {/* ───── bilah aksi (menempel) ───── */}
+      {queue.length > 0 && (
+        <div className="sticky bottom-24 z-20 flex gap-2 rounded-3xl border bg-card/90 p-2 shadow-2xl backdrop-blur-xl lg:bottom-6">
+          <Button variant="ghost" aria-label="Bersihkan" className="shrink-0 px-3 sm:px-5" onClick={() => { setQueue([]); setOutcome(null); setError(null) }} disabled={running}><Eraser className="h-4 w-4" /><span className="hidden sm:inline">Bersihkan</span></Button>
+          <Button variant="secondary" className="min-w-0 flex-1 px-3" onClick={() => execute(true)} disabled={running || !isConfigured}><Eye className="h-4 w-4" /> Pratinjau</Button>
+          <Button className="min-w-0 flex-[1.4] px-3" onClick={startPush} disabled={running || !isConfigured}><Rocket className="h-4 w-4" /> {running ? "Meluncur…" : "Unggah"}</Button>
+        </div>
+      )}
+
+      {/* ───── berjalan / log ───── */}
       {(running || logs.length > 0) && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">{running ? "Sedang berjalan…" : error ? "Gagal" : "Log"}</CardTitle>
-            {(running || progress > 0) && <Progress value={progress} className="h-2 mt-2" />}
-          </CardHeader>
-          <CardContent>
-            <div className="bg-muted/40 rounded-md p-3 max-h-64 overflow-y-auto font-mono text-xs space-y-0.5" aria-live="polite">
-              {logs.map((l) => (
-                <div key={l.id} className={logColor[l.type]}>
-                  <span className="opacity-50 mr-2">{l.t}</span>{l.msg}
+        <Card className="animate-rise overflow-hidden">
+          {running && <div className="h-1 w-full animate-shimmer bg-[length:200%_100%]" style={{ backgroundImage: "linear-gradient(90deg, transparent, var(--ember-from), var(--ember-to), transparent)" }} />}
+          <CardContent className="space-y-4 pt-5 sm:pt-6">
+            {running && (
+              <div className="flex items-center gap-4">
+                <ProgressRing value={progress} />
+                <div className="min-w-0">
+                  <h3 className="font-display text-lg font-bold">Sedang meluncur…</h3>
+                  <p className="truncate text-sm text-muted-foreground">{phase}</p>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+            <button type="button" onClick={() => setShowLog((v) => !v)} aria-expanded={showLog} className="flex w-full items-center justify-between rounded-xl px-1 text-sm font-bold">
+              <span>Log</span><ChevronDown className={cn("h-4 w-4 transition-transform", showLog && "rotate-180")} />
+            </button>
+            {showLog && <RunConsole logs={logs} />}
           </CardContent>
         </Card>
       )}
 
       {error && (
-        <Card className="border-destructive bg-destructive/10">
-          <CardContent className="p-4 text-sm flex gap-3 items-start">
-            <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
-            <div>
-              <p className="font-medium">Gagal — antrean Anda tetap utuh, aman dicoba lagi.</p>
-              <p className="text-muted-foreground mt-1 break-words">{error}</p>
+        <Card className="animate-rise border-destructive/50 bg-destructive/10">
+          <CardContent className="flex items-start gap-3 pt-5 text-sm sm:pt-6">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            <div className="min-w-0">
+              <p className="font-bold">Gagal — antrean Anda tetap utuh, aman dicoba lagi.</p>
+              <p className="mt-1 break-words text-muted-foreground">{error}</p>
             </div>
           </CardContent>
         </Card>
       )}
 
+      {/* ───── hasil / pratinjau ───── */}
       {outcome && sm && ch && (
-        <Card className={outcome.dryRun ? "" : "border-green-500/50 bg-green-500/5"}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              {outcome.dryRun ? <Eye className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5 text-green-500" />}
-              {outcome.dryRun ? "Pratinjau perubahan (belum ada yang ditulis)" : outcome.commitUrl ? "Berhasil di-push" : "Sudah up to date"}
-            </CardTitle>
-            <CardDescription>
-              +{sm.added} baru · ~{sm.modified} diubah · −{sm.deleted} dihapus · ={sm.unchanged} sama · {sm.requests} request API
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {outcome.dryRun && (ch.added.length + ch.modified.length + ch.deleted.length) > 0 && (
-              <div className="max-h-48 overflow-y-auto border rounded-md p-3 font-mono text-xs space-y-0.5">
-                {[...ch.added.map((p) => ["+", p, "text-green-500"]), ...ch.modified.map((p) => ["~", p, "text-amber-500"]), ...ch.deleted.map((p) => ["−", p, "text-red-500"])]
-                  .slice(0, 200).map(([s, p, c]) => <div key={s + p} className={c}>{s} {p}</div>)}
+        <Card className={cn("animate-rise overflow-hidden", !outcome.dryRun && "border-success/40")}>
+          <div className={cn("h-1 w-full", outcome.dryRun ? "bg-ember" : "bg-success")} />
+          <CardContent className="space-y-4 pt-5 sm:pt-6">
+            <div className="flex items-start gap-3">
+              <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-2xl", outcome.dryRun ? "bg-primary/15 text-primary" : "bg-success/15 text-success")}>
+                {outcome.dryRun ? <Eye className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
+              </span>
+              <div className="min-w-0">
+                <h3 className="font-display text-lg font-bold">{outcome.dryRun ? "Pratinjau perubahan" : outcome.commitUrl ? "Berhasil di-push" : "Sudah up to date"}</h3>
+                <p className="text-sm text-muted-foreground">{outcome.dryRun ? "Belum ada yang ditulis ke GitHub." : `${sm.requests} request API untuk seluruh perubahan.`}</p>
+              </div>
+            </div>
+
+            <p className="sr-only">+{sm.added} baru · ~{sm.modified} diubah · −{sm.deleted} dihapus · ={sm.unchanged} sama · {sm.requests} request API</p>
+            <div className="grid grid-cols-4 gap-2 text-center" aria-hidden>
+              {[
+                { l: "Baru", n: sm.added, c: "text-success", i: Plus },
+                { l: "Diubah", n: sm.modified, c: "text-warn", i: Pencil },
+                { l: "Dihapus", n: sm.deleted, c: "text-destructive", i: Minus },
+                { l: "Sama", n: sm.unchanged, c: "text-muted-foreground", i: Equal },
+              ].map(({ l, n, c, i: I }) => (
+                <div key={l} className="rounded-2xl border bg-secondary/40 px-1 py-3">
+                  <I className={cn("mx-auto mb-1 h-3.5 w-3.5", c)} />
+                  <p className={cn("font-display text-xl font-bold tabular-nums", n === 0 && "opacity-40")}>{n}</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground">{l}</p>
+                </div>
+              ))}
+            </div>
+
+            {outcome.dryRun && changeCount > 0 && (
+              <div className="scroll-thin max-h-52 space-y-0.5 overflow-y-auto rounded-2xl border bg-background/50 p-2 font-mono text-xs">
+                {[...ch.added.map((p) => ["+", p, "text-success"]), ...ch.modified.map((p) => ["~", p, "text-warn"]), ...ch.deleted.map((p) => ["−", p, "text-destructive"])]
+                  .slice(0, 200).map(([s, p, c]) => <div key={s + p} className={cn("flex gap-2 rounded-lg px-2 py-1", c)}><span className="w-3 shrink-0 font-bold">{s}</span><span className="min-w-0 break-all text-foreground">{p}</span></div>)}
               </div>
             )}
-            {outcome.dryRun && (ch.added.length + ch.modified.length + ch.deleted.length) > 0 && (
-              <Button onClick={startPush} disabled={running} className="w-full sm:w-auto"><Rocket className="mr-2 h-4 w-4" /> Unggah sekarang</Button>
-            )}
-            {outcome.commitUrl && (
-              <Button asChild variant="outline"><a href={outcome.commitUrl} target="_blank" rel="noreferrer noopener"><ExternalLink className="mr-2 h-4 w-4" /> Lihat commit</a></Button>
-            )}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {outcome.dryRun && changeCount > 0 && <Button onClick={startPush} disabled={running}><Rocket className="h-4 w-4" /> Unggah sekarang</Button>}
+              {outcome.commitUrl && (
+                <Button asChild variant="secondary"><a href={outcome.commitUrl} target="_blank" rel="noreferrer noopener"><ExternalLink className="h-4 w-4" /> Lihat commit</a></Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
+
+      <ActivityHeatmap />
 
       <Dialog open={!!confirmInfo} onOpenChange={(o) => !o && setConfirmInfo(null)}>
         <DialogContent>
@@ -394,16 +447,16 @@ export function Uploader() {
             </DialogDescription>
           </DialogHeader>
           {confirmInfo && confirmInfo.deleted > confirmInfo.kept + confirmInfo.added + confirmInfo.modified && (
-            <div className="flex gap-2 items-start text-sm border border-destructive bg-destructive/10 rounded-md p-3">
-              <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 rounded-2xl border border-destructive/60 bg-destructive/10 p-3 text-sm">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
               <p>Antrean Anda ({queue.length} file) jauh lebih kecil dari isi repo — sebagian besar repo akan terhapus. Kalau Anda memilih sebuah <b>.zip</b>, pastikan ia diekstrak (bukan diunggah sebagai satu file).</p>
             </div>
           )}
-          <div className="max-h-32 overflow-y-auto font-mono text-xs text-red-500 border rounded-md p-2">
+          <div className="scroll-thin max-h-32 overflow-y-auto rounded-2xl border bg-background/50 p-2 font-mono text-xs text-destructive">
             {confirmInfo?.sample.map((p) => <div key={p}>− {p}</div>)}
             {confirmInfo && confirmInfo.deleted > confirmInfo.sample.length && <div className="text-muted-foreground">…dan {confirmInfo.deleted - confirmInfo.sample.length} lainnya</div>}
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={() => setConfirmInfo(null)}>Batal</Button>
             <Button variant="destructive" onClick={() => { setConfirmInfo(null); void execute(false) }}>Ya, hapus {confirmInfo?.deleted} file &amp; unggah</Button>
           </DialogFooter>

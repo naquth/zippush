@@ -4,6 +4,11 @@
 
 Push **ZIP, folder, atau file** ke GitHub dalam **satu commit** — langsung dari browser, tanpa terminal, tanpa server.
 
+<p align="center"><img src="docs/desktop.png" alt="Naquth desktop" width="640"> <img src="docs/mobile.png" alt="Naquth mobile" width="190"></p>
+
+## Desain
+Identitas **Ember**: hitam tinta + api oranye→merah muda dari emblem logo (mode terang "Paper" berwarna krem hangat). Rail navigasi di desktop, *bottom bar* ramah jempol di HP; layar Unggah berbentuk alur 3 langkah (Sumber → Tinjau → Luncurkan) dengan pohon file per-folder, cincin progres, konsol bergaya terminal, dan peta aktivitas 36 minggu. Font self-hosted (Sora, Plus Jakarta Sans, JetBrains Mono) — tanpa request ke pihak ketiga.
+
 ## Kenapa cepat & tidak timeout
 
 Tool serupa mengirim **2 request per file, berurutan, 1 commit per file**. Naquth memakai Git Data API:
@@ -21,7 +26,7 @@ ZIP 600 file teks ≈ **<10 request** (sebelumnya 600+).
 - Target folder, template pesan commit (`{filename} {count} {date}`), mode **mirror** (hapus file lama, dibatasi ke target folder)
 - **Penjelajah**: telusuri, buka, hapus file/folder (1 commit)
 - **Repositori**: daftar publik **dan privat**, jadikan target, buat, hapus (wajib ketik nama)
-- Mode terang/gelap, PWA (service worker berversi), responsif mobile
+- Mode terang/gelap, PWA (service worker berversi), responsif mobile, deep-link per layar (`#settings`)
 
 ## Privasi & keamanan
 - Tidak ada backend: browser → `api.github.com` langsung (dikunci oleh CSP `connect-src`).

@@ -34,7 +34,7 @@ with sync_playwright() as p:
     page.goto(URL); page.wait_for_load_state('networkidle')
 
     # ── logo ──
-    vis = page.locator('header img[alt="Naquth"]:visible')
+    vis = page.locator('img[alt="Naquth"]:visible')
     check(vis.count() == 1, 'tepat 1 logo terlihat di tema terang')
     check(vis.first.evaluate('i=>i.naturalWidth>0') and 'logo-dark' in vis.first.get_attribute('src'), 'tema terang memakai logo HITAM (logo-dark.png) & gambar termuat')
     page.screenshot(path='/tmp/naquth_s1_light_home.png')
@@ -169,7 +169,7 @@ with sync_playwright() as p:
 
     # ── tema gelap + mobile ──
     page.emulate_media(color_scheme='dark'); page.evaluate("localStorage.setItem('theme','dark')"); page.reload(); page.wait_for_load_state('networkidle')
-    vis = page.locator('header img[alt="Naquth"]:visible')
+    vis = page.locator('img[alt="Naquth"]:visible')
     check(vis.count() == 1 and 'logo-light' in vis.first.get_attribute('src'), 'tema gelap memakai logo PUTIH (logo-light.png)')
     page.screenshot(path='/tmp/naquth_s4_dark_desktop.png')
     m = b.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark', device_scale_factor=2)
