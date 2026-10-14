@@ -17,7 +17,7 @@ with zipfile.ZipFile(zbuf, 'w') as z:
     add('proj/run.sh', '#!/bin/sh\necho hi\n', 0o755)
     add('proj/README.md', '# demo\n')           # identik dengan yang sudah di repo -> harus dilewati
     add('__MACOSX/proj/._index.html', 'junk'); add('proj/.DS_Store', 'junk')
-open('/tmp/test.zip', 'wb').write(zbuf.getvalue())
+open('/tmp/test.zip', 'wb').write(zbuf.getvalue()); open('/tmp/test2.zip', 'wb').write(zbuf.getvalue())
 
 errors, csp = [], []
 def check(cond, msg):
@@ -111,8 +111,12 @@ with sync_playwright() as p:
     expect(page.get_by_text('Antrean Unggahan')).to_be_visible(timeout=8000)
     page.get_by_label('Hapus file lama (mirror)').click()
     page.get_by_role('button', name='Unggah', exact=True).click()
-    expect(page.get_by_role('dialog').get_by_text('Hapus file lama?')).to_be_visible()
-    page.get_by_role('button', name='Ya, hapus & unggah').click()
+    # tidak ada file di docs/v1 untuk dihapus → langsung push (tanpa dialog); jika ada, dialog muncul
+    dlg0 = page.get_by_role('dialog').get_by_role('button', name=re.compile('Ya, hapus'))
+    try:
+        dlg0.wait_for(state='visible', timeout=4000); dlg0.click()
+    except Exception:
+        pass
     expect(page.get_by_role('heading', name='Berhasil di-push')).to_be_visible(timeout=15000)
     files = gh.head_files()
     check(all(f in files for f in ['README.md', 'old/stale.txt', 'index.html']), 'mirror dibatasi target folder: file di luar "docs/v1" TIDAK tersentuh')
@@ -134,6 +138,34 @@ with sync_playwright() as p:
     delbtn = page.get_by_role('dialog').get_by_role('button', name='Hapus permanen')
     check(delbtn.is_disabled(), 'hapus repo terkunci sampai nama diketik')
     page.keyboard.press('Escape')
+
+    # ── kasus produksi: ZIP di-drop ke dropzone + mirror aktif ──
+    page.get_by_role('tab', name='Pengaturan').click()
+    page.get_by_label('Target folder (opsional)').fill('')
+    page.get_by_role('button', name='Simpan', exact=True).click()
+    page.get_by_role('tab', name='Unggah').click()
+    dz = page.locator('input[type=file]:not([accept]):not([webkitdirectory])')
+    dz.set_input_files('/tmp/test.zip')                      # auto-ekstrak AKTIF (default)
+    expect(page.get_by_text('Antrean Unggahan')).to_be_visible(timeout=8000)
+    check(page.get_by_text('8 file').count() >= 1, 'ZIP yang di-drop otomatis DIEKSTRAK (8 entri, bukan 1 file .zip)')
+    page.get_by_role('button', name='Bersihkan').click()
+    page.get_by_label('Ekstrak otomatis file .zip yang di-drop').click()   # matikan → .zip jadi 1 file biner
+    dz.set_input_files('/tmp/test2.zip')   # nama berbeda: Playwright tidak mereset input seperti klik pengguna
+    expect(page.get_by_text('1 file')).to_be_visible(timeout=8000)
+    mir = page.get_by_label('Hapus file lama (mirror)')
+    if mir.get_attribute('data-state') != 'checked': mir.click()   # state tab dipertahankan: set eksplisit, jangan toggle
+    expect(mir).to_have_attribute('data-state', 'checked')
+    page.get_by_role('button', name='Unggah', exact=True).click()
+    dlg = page.get_by_role('dialog')
+    expect(dlg.get_by_text(re.compile(r'Hapus \d+ file dari repo\?'))).to_be_visible(timeout=8000)
+    check(dlg.get_by_text('jauh lebih kecil dari isi repo').count() == 1, 'konfirmasi mirror menampilkan ANGKA NYATA + peringatan "antrean jauh lebih kecil"')
+    n_before = len(gh.head_files()); c_before = gh.n_commits()
+    check(gh.n_commits() == c_before and len(gh.head_files()) == n_before, 'sebelum konfirmasi: repo belum disentuh')
+    dlg.get_by_role('button', name=re.compile('Ya, hapus')).click()
+    expect(page.get_by_role('heading', name='Berhasil di-push')).to_be_visible(timeout=15000)
+    check(list(gh.head_files()) == ['test2.zip'], f'mirror 1 file vs repo {n_before} file SUKSES tanpa 404 → {list(gh.head_files())}')
+    page.get_by_role('tab', name='Pengaturan').click()
+    expect(page.get_by_text('Terhubung sebagai @tester')).to_be_visible()
 
     # ── tema gelap + mobile ──
     page.emulate_media(color_scheme='dark'); page.evaluate("localStorage.setItem('theme','dark')"); page.reload(); page.wait_for_load_state('networkidle')

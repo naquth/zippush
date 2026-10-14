@@ -33,7 +33,7 @@ ZIP 600 file teks ≈ **<10 request** (sebelumnya 600+).
 npm install
 npm run dev        # http://localhost:3000
 npm run build && npm start
-npm test           # 30 tes engine (GitHub palsu in-memory)
+npm test           # 33 tes engine (GitHub palsu in-memory)
 npm run typecheck && npm run lint
 ```
 Deploy: Vercel/Netlify/hosting Node apa pun. Header keamanan & CSP aktif di produksi (`next.config.mjs`).

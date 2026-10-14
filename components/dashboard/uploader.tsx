@@ -65,7 +65,8 @@ export function Uploader() {
   const [error, setError] = useState<string | null>(null)
   const [autoStrip, setAutoStrip] = useState(true)
   const [mirror, setMirror] = useState(false)
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [autoExtract, setAutoExtract] = useState(true)
+  const [confirmInfo, setConfirmInfo] = useState<null | { deleted: number; added: number; modified: number; kept: number; sample: string[] }>(null)
   const folderRef = useRef<HTMLInputElement>(null)
   const zipRef = useRef<HTMLInputElement>(null)
   const logId = useRef(0)
@@ -76,7 +77,24 @@ export function Uploader() {
     setQueue((prev) => [...prev, ...items])
   }, [])
 
-  const onDrop = useCallback((files: File[]) => add(files.map(fileItem)), [add])
+  const onDrop = useCallback(async (files: File[]) => {
+    const zips = autoExtract ? files.filter((f) => /\.zip$/i.test(f.name)) : []
+    const rest = files.filter((f) => !zips.includes(f))
+    if (rest.length) add(rest.map(fileItem))
+    if (!zips.length) return
+    setBusy("zip")
+    try {
+      for (const z of zips) {
+        const items = await zipItems(z)
+        add(items)
+        toast.success(`ZIP "${z.name}" diekstrak: ${items.length} file`)
+      }
+    } catch {
+      toast.error("Gagal membaca ZIP (file rusak atau bukan ZIP).")
+    } finally {
+      setBusy("")
+    }
+  }, [add, autoExtract])
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop })
 
   const onFolder = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -103,11 +121,11 @@ export function Uploader() {
   const totalSize = useMemo(() => queue.reduce((s, q) => s + q.size, 0), [queue])
   const target = `${owner || "?"}/${config.repo || "?"} @ ${config.branch}${config.targetFolder.trim() ? ` / ${config.targetFolder.trim().replace(/^\/+|\/+$/g, "")}` : ""}`
 
-  const execute = async (dryRun: boolean) => {
-    if (!isConfigured) return toast.error("Lengkapi pengaturan GitHub dulu (token, repo, branch).")
-    if (!queue.length) return toast.error("Antrean kosong.")
+  const execute = async (dryRun: boolean, silent = false): Promise<EngineResult | null> => {
+    if (!isConfigured) { toast.error("Lengkapi pengaturan GitHub dulu (token, repo, branch)."); return null }
+    if (!queue.length) { toast.error("Antrean kosong."); return null }
     let prefix: string
-    try { prefix = normalizeFolder(config.targetFolder) } catch (e) { return toast.error((e as Error).message) }
+    try { prefix = normalizeFolder(config.targetFolder) } catch (e) { toast.error((e as Error).message); return null }
 
     setBusy("run"); setProgress(0); setLogs([]); setOutcome(null); setError(null)
     const log = (type: LogType, msg: string) =>
@@ -136,23 +154,35 @@ export function Uploader() {
       })
 
       const commitUrl = result.commitSha ? `https://github.com/${owner}/${config.repo.trim()}/commit/${result.commitSha}` : undefined
-      setOutcome({ result, dryRun, commitUrl })
+      if (!silent) setOutcome({ result, dryRun, commitUrl })
       if (!dryRun) {
         recordUploads(result.summary.added + result.summary.modified)
         bumpContents()
         setQueue([]) // hanya dikosongkan saat sukses — kalau gagal, antrean tetap utuh untuk dicoba lagi
         toast.success(result.commitSha ? "Berhasil di-push dalam 1 commit" : "Repo sudah sama dengan isi antrean")
       }
+      return result
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error"
       log("err", msg); setError(msg)
       toast.error(msg)
+      return null
     } finally {
       setBusy("")
     }
   }
 
-  const startPush = () => (mirror ? setConfirmOpen(true) : execute(false))
+  const startPush = async () => {
+    if (!mirror) { await execute(false); return }
+    // Mirror = destruktif. Hitung dulu (tanpa menulis apa pun), lalu minta konfirmasi dengan ANGKA NYATA.
+    const r = await execute(true, true)
+    if (!r) return
+    if (r.changes.deleted.length === 0) { await execute(false); return }
+    setConfirmInfo({
+      deleted: r.changes.deleted.length, added: r.changes.added.length, modified: r.changes.modified.length,
+      kept: r.summary.unchanged, sample: r.changes.deleted.slice(0, 8),
+    })
+  }
   const ch = outcome?.result.changes
   const sm = outcome?.result.summary
 
@@ -237,6 +267,10 @@ export function Uploader() {
         <Button variant="outline" className="w-full sm:w-auto" disabled={busy === "zip"} onClick={() => zipRef.current?.click()}>
           <FileArchive className="mr-2 h-4 w-4" /> {busy === "zip" ? "Membaca ZIP…" : "Ekstrak & Unggah ZIP"}
         </Button>
+      </div>
+      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+        <Switch id="autozip" checked={autoExtract} onCheckedChange={setAutoExtract} />
+        <Label htmlFor="autozip" className="font-normal">Ekstrak otomatis file .zip yang di-drop</Label>
       </div>
 
       {queue.length > 0 && (
@@ -349,17 +383,29 @@ export function Uploader() {
         </Card>
       )}
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <Dialog open={!!confirmInfo} onOpenChange={(o) => !o && setConfirmInfo(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Hapus file lama?</DialogTitle>
+            <DialogTitle>Hapus {confirmInfo?.deleted} file dari repo?</DialogTitle>
             <DialogDescription>
-              File di <b>{target}</b> yang tidak ada di antrean akan <b>dihapus</b>{config.targetFolder.trim() ? " (hanya di dalam target folder)" : " (seluruh repo)"}. Anda bisa melihat daftarnya lewat <b>Pratinjau</b> lebih dulu. Riwayat git tetap menyimpan versi lama, jadi bisa dipulihkan.
+              Mode mirror akan menghapus <b>{confirmInfo?.deleted}</b> file di <b>{target}</b>{config.targetFolder.trim() ? " (hanya di dalam target folder)" : ""},
+              menambah <b>{confirmInfo?.added}</b>, mengubah <b>{confirmInfo?.modified}</b>, dan mempertahankan <b>{confirmInfo?.kept}</b>.
+              Riwayat git tetap menyimpan versi lama, jadi bisa dipulihkan.
             </DialogDescription>
           </DialogHeader>
+          {confirmInfo && confirmInfo.deleted > confirmInfo.kept + confirmInfo.added + confirmInfo.modified && (
+            <div className="flex gap-2 items-start text-sm border border-destructive bg-destructive/10 rounded-md p-3">
+              <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+              <p>Antrean Anda ({queue.length} file) jauh lebih kecil dari isi repo — sebagian besar repo akan terhapus. Kalau Anda memilih sebuah <b>.zip</b>, pastikan ia diekstrak (bukan diunggah sebagai satu file).</p>
+            </div>
+          )}
+          <div className="max-h-32 overflow-y-auto font-mono text-xs text-red-500 border rounded-md p-2">
+            {confirmInfo?.sample.map((p) => <div key={p}>− {p}</div>)}
+            {confirmInfo && confirmInfo.deleted > confirmInfo.sample.length && <div className="text-muted-foreground">…dan {confirmInfo.deleted - confirmInfo.sample.length} lainnya</div>}
+          </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>Batal</Button>
-            <Button variant="destructive" onClick={() => { setConfirmOpen(false); execute(false) }}>Ya, hapus &amp; unggah</Button>
+            <Button variant="outline" onClick={() => setConfirmInfo(null)}>Batal</Button>
+            <Button variant="destructive" onClick={() => { setConfirmInfo(null); void execute(false) }}>Ya, hapus {confirmInfo?.deleted} file &amp; unggah</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

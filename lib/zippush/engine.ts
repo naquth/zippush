@@ -34,6 +34,7 @@ const TREE_CHUNK_ENTRIES = 250
 const TREE_CHUNK_BYTES = 2 * 1024 * 1024
 const MAX_FILE_BYTES = 100 * 1024 * 1024 // batas blob GitHub API
 const LOG_FILE_LINES = 150
+const ANCHOR = '.naquth-tmp-anchor'
 
 type Plan = { entry: PushEntry; sha: string | null; mode: string; kind: 'added' | 'modified' }
 
@@ -93,8 +94,9 @@ export async function runPush(gh: GitHubApi, opts: EngineOptions, cb: EngineCall
   // ── 3. penghapusan ─────────────────────────────────────────────
   const newPaths = new Set(entries.map((e) => e.path))
   const scope = opts.scopePrefix ? opts.scopePrefix.replace(/\/+$/, '') + '/' : ''
-  const deletions = new Set<string>()
-  if (clearRepo) for (const p of remote.keys()) if (!newPaths.has(p) && (!scope || p.startsWith(scope))) deletions.add(p)
+  const mirrorDel = new Set<string>() // mirror: file lama yang tidak ada di antrean
+  const conflictDel = new Set<string>() // konflik file↔folder: harus hilang SEBELUM penambahan
+  if (clearRepo) for (const p of remote.keys()) if (!newPaths.has(p) && (!scope || p.startsWith(scope))) mirrorDel.add(p)
 
   // konflik file↔folder: "a" (file) vs "a/b"; kalau tidak dibereskan GitHub menolak tree-nya
   const remoteDirs = new Map<string, string[]>()
@@ -111,10 +113,12 @@ export async function runPush(gh: GitHubApi, opts: EngineOptions, cb: EngineCall
     const segs = e.path.split('/')
     for (let i = 1; i < segs.length; i++) {
       const parent = segs.slice(0, i).join('/')
-      if (remote.has(parent) && !newPaths.has(parent)) deletions.add(parent)
+      if (remote.has(parent) && !newPaths.has(parent)) conflictDel.add(parent)
     }
-    for (const child of remoteDirs.get(e.path) ?? []) if (!newPaths.has(child)) deletions.add(child)
+    for (const child of remoteDirs.get(e.path) ?? []) if (!newPaths.has(child)) conflictDel.add(child)
   }
+  for (const p of conflictDel) mirrorDel.delete(p)
+  const deletions = new Set([...conflictDel, ...mirrorDel])
   summary.deleted = deletions.size
   summary.added = plans.filter((p) => p.kind === 'added').length
   summary.modified = plans.length - summary.added
@@ -144,7 +148,8 @@ export async function runPush(gh: GitHubApi, opts: EngineOptions, cb: EngineCall
   // ── 4. siapkan item tree: teks inline, biner → blob paralel ────
   const items: TreeItem[] = []
   const inlineBytes: number[] = []
-  const delItems: TreeItem[] = []
+  const conflictItems: TreeItem[] = []
+  const mirrorItems: TreeItem[] = []
   const needBlob: Plan[] = []
   for (const p of plans) {
     const text = tryDecodeText(p.entry.data)
@@ -153,7 +158,8 @@ export async function runPush(gh: GitHubApi, opts: EngineOptions, cb: EngineCall
       inlineBytes.push(p.entry.data.byteLength)
     } else needBlob.push(p)
   }
-  for (const path of deletions) delItems.push({ path, mode: '100644', type: 'blob', sha: null })
+  for (const path of conflictDel) conflictItems.push({ path, mode: '100644', type: 'blob', sha: null })
+  for (const path of mirrorDel) mirrorItems.push({ path, mode: '100644', type: 'blob', sha: null })
   cb.log('info', `${items.length} file teks inline · ${needBlob.length} biner/lainnya sebagai blob`)
 
   if (needBlob.length) {
@@ -170,11 +176,19 @@ export async function runPush(gh: GitHubApi, opts: EngineOptions, cb: EngineCall
   cb.progress(78)
 
   // ── 5. tree berantai → commit → ref ────────────────────────────
-  // penghapusan lebih dulu (chain berurutan) agar konflik file↔folder beres sebelum penambahan
+  // Urutan chain: konflik → penambahan → penghapusan mirror.
+  // GitHub TIDAK menyimpan pohon kosong hasil createTree: memakainya sebagai base_tree = 404.
+  // Penghapusan massal ditaruh TERAKHIR sehingga pohon perantara selalu berisi file.
   const chunks = [
-    ...chunkItems(delItems, delItems.map((d) => d.path.length)),
+    ...chunkItems(conflictItems, conflictItems.map((d) => d.path.length)),
     ...chunkItems(items, inlineBytes),
+    ...chunkItems(mirrorItems, mirrorItems.map((d) => d.path.length)),
   ]
+  // Kasus langka: SEMUA file lama harus dihapus karena konflik → jangkar sementara agar pohon tidak kosong.
+  if (conflictDel.size > 0 && conflictDel.size >= remote.size && chunks.length > 1) {
+    chunks[0].push({ path: ANCHOR, mode: '100644', type: 'blob', content: '.' })
+    chunks[chunks.length - 1].push({ path: ANCHOR, mode: '100644', type: 'blob', sha: null })
+  }
   cb.log('info', `Membuat tree (${chunks.length} request)…`)
   let treeSha = baseTreeSha
   for (let i = 0; i < chunks.length; i++) {
@@ -223,6 +237,7 @@ export async function runDelete(
     for (const k of blobs.keys()) if (k.startsWith(p + '/')) targets.add(k)
   }
   if (!targets.size) throw new Error('Tidak ada file yang cocok untuk dihapus (mungkin sudah terhapus).')
+  if (targets.size >= blobs.size) throw new Error('Tidak bisa mengosongkan repo sepenuhnya lewat API — sisakan minimal satu file (mis. README).')
 
   const items: TreeItem[] = [...targets].map((path) => ({ path, mode: '100644', type: 'blob', sha: null }))
   let treeSha = baseTreeSha

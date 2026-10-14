@@ -72,6 +72,7 @@ export function SettingsPanel() {
     if (r) patch({ username: r.owner.login, repo: r.name, branch: r.default_branch || "main" })
   }
   const hasRepoScope = scopes === null || scopes.includes("repo")
+  const broadScopes = (scopes ?? []).filter((s) => s.startsWith("admin:"))
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto mt-6">
@@ -158,6 +159,12 @@ export function SettingsPanel() {
             {user && !userError && <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400"><CheckCircle2 className="h-4 w-4" /> Terhubung sebagai @{user.login}</span>}
             {userError && <span className="flex items-center gap-1 text-sm text-destructive"><XCircle className="h-4 w-4" /> {userError}</span>}
           </div>
+          {user && broadScopes.length > 0 && (
+            <p className="text-sm text-amber-600 dark:text-amber-400 flex gap-2 items-start">
+              <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>Token ini punya akses sangat luas ({broadScopes.slice(0, 3).join(", ")}{broadScopes.length > 3 ? ", …" : ""}). Naquth hanya butuh <code>repo</code> (+ <code>workflow</code>). Buat token baru yang lebih sempit — idealnya fine-grained untuk satu repo — lalu cabut yang ini.</span>
+            </p>
+          )}
           {user && !hasRepoScope && (
             <p className="text-sm text-amber-600 dark:text-amber-400">Token classic ini tidak punya scope <code>repo</code> — unggahan ke repo privat akan gagal.</p>
           )}

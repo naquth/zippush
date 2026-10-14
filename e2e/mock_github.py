@@ -8,7 +8,7 @@ class MockGitHub:
     """GitHub palsu dengan semantik Git asli: sha blob nyata, tree berantai, penolakan path ganda."""
     def __init__(self):
         self.blobs = {}; self.trees = {}; self.commits = {}; self.n = itertools.count(1)
-        self.requests = []; self.counts = {}
+        self.requests = []; self.counts = {}; self.empty_ephemeral = set()
         t = self._mk_tree({}); self.trees[t] = {}
         # repo awal: README + folder lama
         seed = {'README.md': b'# demo\n', 'old/stale.txt': b'old'}
@@ -56,6 +56,7 @@ class MockGitHub:
         if path == '/repos/tester/demo/git/blobs':
             data = base64.b64decode(body['content']); return ok({'sha': self._blob(data)}, 201)
         if path == '/repos/tester/demo/git/trees' and m == 'POST':
+            if body['base_tree'] in self.empty_ephemeral: return ok({'message': 'Not Found'}, 404)  # pohon kosong hasil createTree tidak tersimpan di GitHub nyata
             t = dict(self.trees[body['base_tree']]); seen = set()
             for it in body['tree']:
                 if it['path'] in seen: return ok({'message': 'duplicate path ' + it['path']}, 422)
@@ -69,7 +70,9 @@ class MockGitHub:
             for a in ps:
                 for b in ps:
                     if b.startswith(a + '/'): return ok({'message': f'file/dir conflict {a} {b}'}, 422)
-            return ok({'sha': self._mk_tree(t)}, 201)
+            ns = self._mk_tree(t)
+            if not t: self.empty_ephemeral.add(ns)
+            return ok({'sha': ns}, 201)
         if path == '/repos/tester/demo/git/commits' and m == 'POST':
             c = f'c{next(self.n):040d}'; self.commits[c] = {'tree': body['tree'], 'parent': body['parents'][0], 'message': body['message']}
             return ok({'sha': c}, 201)

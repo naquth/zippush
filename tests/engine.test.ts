@@ -273,3 +273,31 @@ describe('fitur gabungan (Naquth)', () => {
     expect(url).toBe('https://api.github.com/repos/o/r/contents/dir/my%20file%231?ref=feature%2Fx%20y')
   })
 })
+
+describe('regresi: mirror dengan antrean kecil (bug 404 di produksi)', () => {
+  it('mirror: antrean 1 file vs repo 6 file → sukses, pohon perantara tidak pernah kosong', async () => {
+    const gh = new FakeGitHub()
+    await gh.seed('main', { 'a.txt': '1', 'b.txt': '2', 'src/c.ts': '3', 'src/d.ts': '4', 'vercel.json': '{}', 'tsconfig.json': '{}' })
+    const r = await run(gh, [f('only.bin', new Uint8Array(randomBytes(300)))], { clearRepo: true })
+    expect(r.commitSha).toBeTruthy()
+    expect([...gh.head('main').keys()]).toEqual(['only.bin'])
+    expect(r.summary.deleted).toBe(6)
+  })
+  it('mirror + banyak penghapusan (>250 → beberapa chunk) tetap sukses', async () => {
+    const gh = new FakeGitHub()
+    const seed: Record<string, string> = {}
+    for (let i = 0; i < 600; i++) seed[`old/f${i}.txt`] = String(i)
+    await gh.seed('main', seed)
+    const r = await run(gh, [f('new.txt', 'n')], { clearRepo: true })
+    expect([...gh.head('main').keys()]).toEqual(['new.txt'])
+    expect(r.summary.deleted).toBe(600)
+  })
+})
+
+describe('pengaman runDelete', () => {
+  it('menolak menghapus SEMUA file repo', async () => {
+    const gh = new FakeGitHub(); const c0 = await gh.seed('main', { 'a.txt': '1', 'd/b.txt': '2' })
+    await expect(runDelete(gh, { branch: 'main', paths: ['a.txt', 'd'], message: 'x' }, { log: () => {}, progress: () => {} })).rejects.toThrow(/mengosongkan repo/)
+    expect(gh.refs.get('main')).toBe(c0)
+  })
+})

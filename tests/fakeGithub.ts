@@ -15,6 +15,7 @@ export class FakeGitHub implements GitHubApi {
   inflight = 0
   maxInflight = 0
   failBlobAfter = Infinity
+  ephemeralEmpty = new Set<string>()
   private n = 0
 
   private hit(name: string) { this.requestCount++; this.calls[name] = (this.calls[name] ?? 0) + 1 }
@@ -53,7 +54,10 @@ export class FakeGitHub implements GitHubApi {
 
   async createTree(base: string, items: TreeItem[]) {
     this.hit('createTree')
-    const tree: Tree = new Map(this.trees.get(base)!)
+    const baseTree = this.trees.get(base)!
+    // pohon kosong HASIL createTree tidak tersimpan di repo → dipakai sebagai base_tree = 404
+    if (this.ephemeralEmpty.has(base)) throw new Error('Repo/branch tidak ditemukan (404) — base_tree kosong')
+    const tree: Tree = new Map(baseTree)
     const seen = new Set<string>()
     for (const it of items) {
       if (seen.has(it.path)) throw new Error(`duplicate path ${it.path}`)
@@ -73,6 +77,7 @@ export class FakeGitHub implements GitHubApi {
     for (const p of paths) for (const q of paths) if (q.startsWith(p + '/')) throw new Error(`file/dir conflict: ${p} vs ${q}`)
     const sha = `tree${++this.n}`
     this.trees.set(sha, tree)
+    if (tree.size === 0) this.ephemeralEmpty.add(sha)
     return sha
   }
 
