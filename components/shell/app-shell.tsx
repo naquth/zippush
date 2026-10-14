@@ -22,7 +22,7 @@ function ConnectionCard({ onConnect }: { onConnect: () => void }) {
   const { config, user, userError, owner, isConfigured } = useGithub()
   if (!config.token) {
     return (
-      <button onClick={onConnect} className="w-full rounded-2xl border border-dashed border-ember bg-primary/5 p-3 text-left transition hover:bg-primary/10">
+      <button onClick={onConnect} className="w-full rounded-2xl border border-dashed border-brand bg-primary/5 p-3 text-left transition hover:bg-primary/10">
         <p className="flex items-center gap-2 text-sm font-bold"><span className="h-2 w-2 rounded-full bg-warn" /> Belum terhubung</p>
         <p className="mt-0.5 text-xs text-muted-foreground">Ketuk untuk menambahkan token GitHub.</p>
       </button>
@@ -76,7 +76,7 @@ export function AppShell({ views }: { views: Record<ViewId, ReactNode> }) {
 
   return (
     <ShellContext.Provider value={{ view, setView }}>
-      <div className="ember-aura relative min-h-dvh">
+      <div className="brand-aura relative min-h-dvh">
         {/* ───── rail desktop ───── */}
         <aside className="fixed inset-y-0 left-0 z-30 hidden w-[272px] flex-col border-r bg-card/70 p-5 backdrop-blur-xl lg:flex">
           <div className="px-1 pt-1"><Logo height={30} /></div>
@@ -92,8 +92,8 @@ export function AppShell({ views }: { views: Record<ViewId, ReactNode> }) {
                     on ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
                   )}
                 >
-                  {on && <span className="absolute -left-5 top-3 bottom-3 w-1 rounded-r-full bg-ember" />}
-                  <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl transition-colors", on ? "bg-ember text-primary-foreground shadow-glow" : "bg-secondary")}>
+                  {on && <span className="absolute -left-5 top-3 bottom-3 w-1 rounded-r-full bg-brand" />}
+                  <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl transition-colors", on ? "bg-brand text-primary-foreground shadow-glow" : "bg-secondary")}>
                     <Icon className="h-[18px] w-[18px]" />
                   </span>
                   <span className="min-w-0">
@@ -142,7 +142,7 @@ export function AppShell({ views }: { views: Record<ViewId, ReactNode> }) {
                   onClick={() => setView(id)}
                   className={cn("flex flex-col items-center gap-1 rounded-2xl py-1.5 text-[11px] font-bold transition-colors", on ? "text-foreground" : "text-muted-foreground")}
                 >
-                  <span className={cn("grid h-8 w-14 place-items-center rounded-full transition-all", on ? "bg-ember text-primary-foreground shadow-glow" : "")}>
+                  <span className={cn("grid h-8 w-14 place-items-center rounded-full transition-all", on ? "bg-brand text-primary-foreground shadow-glow" : "")}>
                     <Icon className="h-[18px] w-[18px]" />
                   </span>
                   {label}

@@ -9,15 +9,15 @@ export function ProgressRing({ value, size = 88, stroke = 8, className }: { valu
     <div className={cn("relative shrink-0", className)} style={{ width: size, height: size }} role="progressbar" aria-valuenow={v} aria-valuemin={0} aria-valuemax={100}>
       <svg width={size} height={size} className="-rotate-90">
         <defs>
-          <linearGradient id="ring-ember" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" style={{ stopColor: "var(--ember-from)" }} />
-            <stop offset="100%" style={{ stopColor: "var(--ember-to)" }} />
+          <linearGradient id="ring-brand" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" style={{ stopColor: "var(--brand-from)" }} />
+            <stop offset="100%" style={{ stopColor: "var(--brand-to)" }} />
           </linearGradient>
         </defs>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} style={{ stroke: "var(--secondary)" }} />
         <circle
           cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} strokeLinecap="round"
-          stroke="url(#ring-ember)" strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)}
+          stroke="url(#ring-brand)" strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)}
           className="transition-[stroke-dashoffset] duration-300"
         />
       </svg>

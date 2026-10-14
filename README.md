@@ -7,7 +7,7 @@ Push **ZIP, folder, atau file** ke GitHub dalam **satu commit** — langsung dar
 <p align="center"><img src="docs/desktop.png" alt="Naquth desktop" width="640"> <img src="docs/mobile.png" alt="Naquth mobile" width="190"></p>
 
 ## Desain
-Identitas **Ember**: hitam tinta + api oranye→merah muda dari emblem logo (mode terang "Paper" berwarna krem hangat). Rail navigasi di desktop, *bottom bar* ramah jempol di HP; layar Unggah berbentuk alur 3 langkah (Sumber → Tinjau → Luncurkan) dengan pohon file per-folder, cincin progres, konsol bergaya terminal, dan peta aktivitas 36 minggu. Font self-hosted (Sora, Plus Jakarta Sans, JetBrains Mono) — tanpa request ke pihak ketiga.
+Identitas **monokrom**: hitam tinta dengan aksen putih (mode terang "Paper": krem hangat dengan aksen tinta), selaras dengan logo putih NAQUTH. Rail navigasi di desktop, *bottom bar* ramah jempol di HP; layar Unggah berbentuk alur 3 langkah (Sumber → Tinjau → Luncurkan) dengan pohon file per-folder, cincin progres, konsol bergaya terminal, dan peta aktivitas 36 minggu. Font self-hosted (Sora, Plus Jakarta Sans, JetBrains Mono) — tanpa request ke pihak ketiga.
 
 ## Kenapa cepat & tidak timeout
 

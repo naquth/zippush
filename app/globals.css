@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  /* ───────── PAPER (terang): krem hangat, tinta pekat ───────── */
+  /* ───────── PAPER (terang): krem hangat, aksen tinta ───────── */
   :root {
     --background: #f6f3ed;
     --foreground: #17140f;
@@ -11,8 +11,8 @@
     --card-foreground: #17140f;
     --popover: #ffffff;
     --popover-foreground: #17140f;
-    --primary: #ff6a2b;
-    --primary-foreground: #1a0b04;
+    --primary: #17140f;
+    --primary-foreground: #f6f3ed;
     --secondary: #efeae0;
     --secondary-foreground: #17140f;
     --muted: #ece7dc;
@@ -23,16 +23,18 @@
     --destructive-foreground: #ffffff;
     --border: #e3ddd0;
     --input: #d8d1c2;
-    --ring: #ff6a2b;
+    --ring: #17140f;
     --success: #0f9d63;
     --warn: #b7791f;
     --info: #1d78c4;
-    --ember-from: #ff8a1f;
-    --ember-to: #ff2e7a;
+    --brand-from: #2b2721;
+    --brand-to: #0d0b08;
+    --aura-a: rgba(23, 20, 15, 0.06);
+    --aura-b: rgba(23, 20, 15, 0.035);
     --radius: 1rem;
     color-scheme: light;
   }
-  /* ───────── INK (gelap): hitam tinta, api oranye ───────── */
+  /* ───────── INK (gelap): hitam tinta, aksen putih ───────── */
   .dark {
     --background: #0a0a0c;
     --foreground: #f3efe8;
@@ -40,8 +42,8 @@
     --card-foreground: #f3efe8;
     --popover: #16161a;
     --popover-foreground: #f3efe8;
-    --primary: #ff6a2b;
-    --primary-foreground: #1a0b04;
+    --primary: #f4f2ee;
+    --primary-foreground: #0a0a0c;
     --secondary: #1b1b20;
     --secondary-foreground: #f3efe8;
     --muted: #17171b;
@@ -52,12 +54,14 @@
     --destructive-foreground: #ffffff;
     --border: #26262d;
     --input: #31313a;
-    --ring: #ff6a2b;
+    --ring: #f4f2ee;
     --success: #3ddc97;
     --warn: #ffc24b;
     --info: #6cb8ff;
-    --ember-from: #ff8a1f;
-    --ember-to: #ff3d6e;
+    --brand-from: #ffffff;
+    --brand-to: #c9c5bc;
+    --aura-a: rgba(255, 255, 255, 0.075);
+    --aura-b: rgba(255, 255, 255, 0.04);
     color-scheme: dark;
   }
 
@@ -71,22 +75,22 @@
     font-feature-settings: "cv11", "ss01";
   }
   h1, h2, h3 { @apply font-display tracking-tight; }
-  ::selection { background: color-mix(in srgb, var(--ember-from) 40%, transparent); }
+  ::selection { background: color-mix(in srgb, var(--foreground) 24%, transparent); }
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 }
 
 @layer utilities {
-  .bg-ember { background-image: linear-gradient(135deg, var(--ember-from), var(--ember-to)); }
-  .text-ember {
-    background-image: linear-gradient(135deg, var(--ember-from), var(--ember-to));
+  .bg-brand { background-image: linear-gradient(135deg, var(--brand-from), var(--brand-to)); }
+  .text-brand {
+    background-image: linear-gradient(135deg, var(--brand-from), var(--brand-to));
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  .border-ember { border-color: color-mix(in srgb, var(--ember-from) 55%, transparent); }
-  /* cahaya api di sudut halaman */
-  .ember-aura {
+  .border-brand { border-color: color-mix(in srgb, var(--brand-from) 55%, transparent); }
+  /* cahaya lembut netral di sudut halaman */
+  .brand-aura {
     background:
-      radial-gradient(60rem 28rem at 8% -8%, color-mix(in srgb, var(--ember-from) 16%, transparent), transparent 60%),
-      radial-gradient(44rem 24rem at 100% 0%, color-mix(in srgb, var(--ember-to) 10%, transparent), transparent 62%);
+      radial-gradient(60rem 28rem at 8% -8%, var(--aura-a), transparent 60%),
+      radial-gradient(44rem 24rem at 100% 0%, var(--aura-b), transparent 62%);
   }
   /* butiran halus agar permukaan tidak "datar plastik" */
   .grain::after {

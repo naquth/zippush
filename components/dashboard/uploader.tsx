@@ -3,11 +3,10 @@
 import { useState, useRef, useCallback, useMemo } from "react"
 import { useDropzone } from "react-dropzone"
 import { toast } from "sonner"
-import { FolderUp, FileArchive, Eye, Rocket, ExternalLink, CheckCircle2, AlertTriangle, Check, GitBranch, ChevronDown, Layers, Eraser, Plus, Minus, Equal, Pencil } from "lucide-react"
+import { CloudUpload, FolderUp, FileArchive, Eye, Rocket, ExternalLink, CheckCircle2, AlertTriangle, Check, GitBranch, ChevronDown, Layers, Eraser, Plus, Minus, Equal, Pencil } from "lucide-react"
 import { useGithub } from "@/lib/github-context"
 import { useShell } from "@/components/shell/shell-context"
 import { ViewHeader, Eyebrow } from "@/components/shell/view-header"
-import { Emblem } from "@/components/brand/logo"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -201,7 +200,7 @@ export function Uploader() {
     return (
       <li className="flex items-center gap-2">
         <span className={cn("grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold transition-colors",
-          done ? "bg-ember text-primary-foreground" : on ? "border-2 border-primary text-foreground" : "border border-input text-muted-foreground")}>
+          done ? "bg-brand text-primary-foreground" : on ? "border-2 border-primary text-foreground" : "border border-input text-muted-foreground")}>
           {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
         </span>
         <span className={cn("text-xs font-bold", on || done ? "text-foreground" : "text-muted-foreground")}>{label}</span>
@@ -285,13 +284,13 @@ export function Uploader() {
         {...getRootProps()}
         className={cn(
           "grain relative cursor-pointer overflow-hidden rounded-[2rem] border-2 border-dashed px-6 py-10 text-center transition-all duration-200 sm:py-14",
-          isDragActive ? "scale-[1.01] border-primary bg-primary/10 shadow-glow" : "border-input bg-card/60 hover:border-ember hover:bg-card"
+          isDragActive ? "scale-[1.01] border-primary bg-primary/10 shadow-glow" : "border-input bg-card/60 hover:border-brand hover:bg-card"
         )}
       >
         <input {...getInputProps()} />
         <div className="relative mx-auto mb-5 grid h-24 w-24 place-items-center">
-          <span className={cn("absolute inset-0 rounded-full bg-ember opacity-20 blur-2xl", isDragActive && "animate-ember-pulse opacity-60")} />
-          <span className="relative grid h-20 w-20 place-items-center rounded-[1.6rem] border bg-card shadow-soft"><Emblem size={44} /></span>
+          <span className={cn("absolute inset-0 rounded-full bg-brand opacity-20 blur-2xl", isDragActive && "animate-brand-pulse opacity-60")} />
+          <span className="relative grid h-20 w-20 place-items-center rounded-[1.6rem] border bg-card shadow-soft"><CloudUpload className={cn("h-9 w-9 transition-transform", isDragActive && "-translate-y-1 animate-bounce")} strokeWidth={1.75} aria-hidden /></span>
         </div>
         <p className="font-display text-lg font-bold sm:text-xl">{isDragActive ? "Lepaskan untuk menambahkan" : "Lepas file, folder, atau ZIP di sini"}</p>
         <p className="mt-1 text-sm text-muted-foreground">atau ketuk area ini untuk memilih berkas</p>
@@ -356,7 +355,7 @@ export function Uploader() {
       {/* ───── berjalan / log ───── */}
       {(running || logs.length > 0) && (
         <Card className="animate-rise overflow-hidden">
-          {running && <div className="h-1 w-full animate-shimmer bg-[length:200%_100%]" style={{ backgroundImage: "linear-gradient(90deg, transparent, var(--ember-from), var(--ember-to), transparent)" }} />}
+          {running && <div className="h-1 w-full animate-shimmer bg-[length:200%_100%]" style={{ backgroundImage: "linear-gradient(90deg, transparent, var(--brand-from), var(--brand-to), transparent)" }} />}
           <CardContent className="space-y-4 pt-5 sm:pt-6">
             {running && (
               <div className="flex items-center gap-4">
@@ -390,7 +389,7 @@ export function Uploader() {
       {/* ───── hasil / pratinjau ───── */}
       {outcome && sm && ch && (
         <Card className={cn("animate-rise overflow-hidden", !outcome.dryRun && "border-success/40")}>
-          <div className={cn("h-1 w-full", outcome.dryRun ? "bg-ember" : "bg-success")} />
+          <div className={cn("h-1 w-full", outcome.dryRun ? "bg-brand" : "bg-success")} />
           <CardContent className="space-y-4 pt-5 sm:pt-6">
             <div className="flex items-start gap-3">
               <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-2xl", outcome.dryRun ? "bg-primary/15 text-primary" : "bg-success/15 text-success")}>

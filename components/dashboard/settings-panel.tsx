@@ -23,7 +23,7 @@ function Section({ n, icon, title, desc, children }: { n: number; icon: ReactNod
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-foreground">{icon}</span>
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-ember">Langkah {n}</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-brand">Langkah {n}</p>
             <h2 className="font-display text-lg font-bold leading-tight">{title}</h2>
             <p className="text-sm text-muted-foreground">{desc}</p>
           </div>

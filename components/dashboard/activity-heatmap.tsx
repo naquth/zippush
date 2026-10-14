@@ -9,8 +9,8 @@ const iso = (d: Date) => d.toISOString().split("T")[0] // sama dengan format yan
 const level = (n: number, max: number) => (n <= 0 ? 0 : Math.min(4, Math.ceil((n / max) * 4)))
 const bg = (l: number): React.CSSProperties =>
   l === 0 ? { background: "var(--secondary)" }
-  : l === 4 ? { backgroundImage: "linear-gradient(135deg, var(--ember-from), var(--ember-to))" }
-  : { background: `color-mix(in srgb, var(--ember-from) ${[28, 52, 76][l - 1]}%, transparent)` }
+  : l === 4 ? { backgroundImage: "linear-gradient(135deg, var(--brand-from), var(--brand-to))" }
+  : { background: `color-mix(in srgb, var(--brand-from) ${[28, 52, 76][l - 1]}%, transparent)` }
 
 /** Peta aktivitas ala kalender: 20 minggu terakhir. Menggantikan grafik batang. */
 export function ActivityHeatmap() {

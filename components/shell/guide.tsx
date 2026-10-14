@@ -25,12 +25,12 @@ export function Guide() {
         <ol className="space-y-4">
           {steps.map(([t, d], i) => (
             <li key={t} className="flex gap-3">
-              <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-ember text-xs font-bold text-primary-foreground">{i + 1}</span>
+              <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand text-xs font-bold text-primary-foreground">{i + 1}</span>
               <div><p className="text-sm font-bold">{t}</p><p className="text-sm text-muted-foreground">{d}</p></div>
             </li>
           ))}
         </ol>
-        <p className="rounded-2xl border border-ember bg-primary/5 p-3 text-xs">
+        <p className="rounded-2xl border border-brand bg-primary/5 p-3 text-xs">
           <b>Privasi:</b> tidak ada server Naquth. Semua proses terjadi di browser Anda dan langsung ke <code className="font-mono">api.github.com</code>. Token hanya tersimpan di perangkat jika Anda mengaktifkan &quot;Ingat token&quot;.
         </p>
       </DialogContent>

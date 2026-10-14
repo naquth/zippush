@@ -107,7 +107,7 @@ export function Repositories() {
         {filtered.map((r) => {
           const active = r.name === config.repo && r.owner.login === owner
           return (
-            <Card key={r.id} className={cn("flex flex-col transition-all", active && "border-ember shadow-glow")}>
+            <Card key={r.id} className={cn("flex flex-col transition-all", active && "border-brand shadow-glow")}>
               <CardContent className="flex flex-1 flex-col gap-3 pt-5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -120,7 +120,7 @@ export function Repositories() {
                 </div>
                 <p className="line-clamp-2 min-h-[2.5rem] text-sm text-muted-foreground">{r.description || "Tidak ada deskripsi."}</p>
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  {r.language && <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-ember" />{r.language}</span>}
+                  {r.language && <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-brand" />{r.language}</span>}
                   <span className="flex items-center gap-1"><Star className="h-3 w-3" /> {r.stargazers_count}</span>
                   <span className="flex items-center gap-1"><GitFork className="h-3 w-3" /> {r.forks_count}</span>
                 </div>
